@@ -441,10 +441,10 @@ for column in CONFIG.column_names:
     final_mat[column] = np.where(np.abs(final_mat[column]) < CONFIG.graph_threshold, 0, 1)
 
 # Save final binary adjacency matrix
-final_df.to_csv("results/adj_mat_alarm.csv", index=True)
+np.savetxt("results/adj_mat_alarm.csv", final_mat, delimiter=",")
 
 # Draw the DAG
-final_DAG = from_numpy_matrix(final_df.to_numpy(), create_using=nx.DiGraph)
+final_DAG = from_numpy_matrix(final_mat.to_numpy(), create_using=nx.DiGraph)
 final_DAG = nx.relabel_nodes(
     final_DAG, dict(zip(list(range(CONFIG.data_variable_size)), CONFIG.column_names))
 )
