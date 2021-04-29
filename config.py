@@ -10,13 +10,13 @@ class CONFIG:
         pass
 
     # You must change this to the filename you wish to use as input data!
-    data_filename = "data_alarm_encoded.csv"
+    data_filename = "alarm.csv"
 
     # Epochs
-    epochs = 150
+    epochs = 300
 
     # Batch size (note: should be divisible by sample size, otherwise throw an error)
-    batch_size = 10000
+    batch_size = 1000
 
     # Learning rate (baseline rate = 1e-3)
     lr = 1e-3
