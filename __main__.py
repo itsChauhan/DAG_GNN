@@ -364,9 +364,11 @@ h_tol = CONFIG.h_tol
 k_max_iter = int(CONFIG.k_max_iter)
 h_A_old = np.inf
 final_mat = np.zeros((37,37))
-no_of_iter = 0
+no_of_iter = []
+
 try:
     for step_k in range(k_max_iter):
+        c_A_count=0
         while c_A < 1e20:
             for epoch in range(CONFIG.epochs):
                 ELBO_loss, NLL_loss, MSE_loss, graph, origin_A = train(
@@ -386,7 +388,8 @@ try:
                     best_MSE_loss = MSE_loss
                     best_epoch = epoch
                     best_MSE_graph = graph
-
+            
+            c_A_count+=1
             print("Optimization Finished!")
             print("Best Epoch: {:04d}".format(best_epoch))
             if ELBO_loss > 2 * best_ELBO_loss:
@@ -404,6 +407,7 @@ try:
 
             # update parameters
             # h_A, adj_A are computed in loss anyway, so no need to store
+        no_of_iter.append(c_A_count)
         h_A_old = h_A_new.item()
         lambda_A += c_A * h_A_new.item()
 
@@ -416,26 +420,25 @@ try:
         final_df = pd.DataFrame(matG1, index=CONFIG.column_names, columns=CONFIG.column_names)
 
         for column in CONFIG.column_names:
-            final_df[column] = np.where(np.abs(final_df[column]) < CONFIG.graph_threshold, 0, 1)
+            final_df[column] = np.where(np.abs(final_df[column]) < CONFIG.graph_threshold, 0,final_df[column])
 
         final_mat += final_df
-        no_of_iter+=1
-
-        if no_of_iter > 10:
-            break
 
 except KeyboardInterrupt:
     print("Done!")
 
 
+#total_iterations=no_of_wpochs*(summations of c_A_count)
+
+total_iterations=0
+for i in no_of_iter:
+    total_iterations+=i
 
 
-# Create binary adjacency matrix using config threshold
-# matG1 = np.matrix(origin_A.data.clone().numpy())
-# final_df = pd.DataFrame(matG1, index=CONFIG.column_names, columns=CONFIG.column_names)
+final_mat=np.divide(final_mat,total_iterations)
 
-# for column in CONFIG.column_names:
-final_mat[column] = np.where(np.abs(final_mat[column]) < CONFIG.graph_threshold, 0, 1)
+for column in CONFIG.column_names:
+    final_mat[column] = np.where(np.abs(final_mat[column]) < CONFIG.graph_threshold, 0, 1)
 
 # Save final binary adjacency matrix
 final_df.to_csv("results/adj_mat_alarm.csv", index=True)
