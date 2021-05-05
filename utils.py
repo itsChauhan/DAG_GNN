@@ -159,26 +159,36 @@ def binary_accuracy(output, labels):
 def list_files(directory, extension):
     return (f for f in os.listdir(directory) if f.endswith("_graph" + extension))
 
+def load_data_set(config,debug=False):
+    full_df = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
+    return full_df
 
-def load_data(config, batch_size=1000, debug=False):
+def set_config(config, full_df):
+    config.column_names=full_df.columns
+    config.data_variable_size = len(config.column_names)
+    return config
 
+
+
+def load_data(config, data, batch_size=1000, debug=False):
+    # data = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
+    rows = np.random.choice(data.index.values, 12000)
+
+    df_temp = data.loc[rows]
+    # df_temp.to_csv("datasets/sample_data.csv",index = False)
     # load dataset as numpy array
-    X = np.expand_dims(
-        np.loadtxt(
-            os.path.expanduser("datasets/" + config.data_filename),
-            skiprows=1,
-            delimiter=",",
-            dtype=np.int32,
-        ),
-        2,
-    )
+    X = np.expand_dims(df_temp.to_numpy(),2)
+
+    print(df_temp.shape)
+    print(X.shape)
 
     # get column/variable names
-    df_temp = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
-    config.column_names = df_temp.columns
+    # df_temp = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
+    # df_temp  = df_temp.sample(frac = 0.5)
+    # config.column_names = df_temp.columns
 
-    # get number of columns/variables
-    config.data_variable_size = len(config.column_names)
+    # # get number of columns/variables
+    # config.data_variable_size = len(config.column_names)
 
     feat_train = torch.FloatTensor(X)
     feat_valid = torch.FloatTensor(X)
@@ -193,7 +203,7 @@ def load_data(config, batch_size=1000, debug=False):
     valid_data_loader = DataLoader(valid_data, batch_size=batch_size,   sampler =  torch.utils.data.RandomSampler(valid_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
     test_data_loader = DataLoader(test_data, batch_size=batch_size,  sampler =  torch.utils.data.RandomSampler(test_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
 
-    return train_data_loader, valid_data_loader, test_data_loader, config
+    return train_data_loader, valid_data_loader, test_data_loader
 
 
 def to_2d_idx(idx, num_cols):
