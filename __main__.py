@@ -413,14 +413,14 @@ try:
 
 
 
-        if h_A_new.item() <= h_tol:
-            break
+#         if h_A_new.item() <= h_tol:
+#             break
 
         matG1 = np.matrix(origin_A.data.clone().numpy())
         final_df = pd.DataFrame(matG1, index=CONFIG.column_names, columns=CONFIG.column_names)
 
         for column in CONFIG.column_names:
-            final_df[column] = np.where(np.abs(final_df[column]) < CONFIG.graph_threshold, 0,final_df[column])
+            final_df[column] = np.where(np.abs(final_df[column]) < CONFIG.graph_threshold, 0,1)
 
         final_mat += final_df
 
@@ -428,20 +428,24 @@ except KeyboardInterrupt:
     print("Done!")
 
 
-#total_iterations=no_of_wpochs*(summations of c_A_count)
-
-total_iterations=0
-for i in no_of_iter:
-    total_iterations+=i
-
-
+total_iterations=len(no_of_iter)
 final_mat=np.divide(final_mat,total_iterations)
 
+for i in range(final_mat.shape[0]):
+    for j in range(final_mat.shape[1]):
+        if final_mat.iloc[i,j] >= final_mat.iloc[j,i]:
+            final_mat.iloc[i,j]+=final_mat.iloc[j,i]
+            final_mat.iloc[j,i]=0
+        else:
+            final_mat.iloc[j,i]+=final_mat.iloc[i,j]
+            final_mat.iloc[i,j]=0
+            
+            
 for column in CONFIG.column_names:
-    final_mat[column] = np.where(np.abs(final_mat[column]) < CONFIG.graph_threshold, 0, 1)
+    final_mat[column] = np.where(np.abs(final_mat[column]) < .5 , 0, 1)
 
 # Save final binary adjacency matrix
-np.savetxt("results/adj_mat_alarm.csv", final_mat, delimiter=",")
+final_mat.to_csv("results/final_adjacency_matrix.csv", index=True)
 
 # Draw the DAG
 final_DAG = from_numpy_matrix(final_mat.to_numpy(), create_using=nx.DiGraph)
