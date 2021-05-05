@@ -30,12 +30,17 @@ torch.manual_seed(CONFIG.seed)
 if CONFIG.cuda:
     torch.cuda.manual_seed(CONFIG.seed)
 
+#loading dataset
+full_df=load_data_set(CONFIG)
+
+#seting the config values
+CONFIG=set_config(CONFIG,full_df)
 
 # ================================================
 # get data: experiments = {synthetic SEM, ALARM}
 # ================================================
 # train_loader, valid_loader, test_loader, ground_truth_G = load_data( args, CONFIG.batch_size, CONFIG.suffix)
-train_loader, valid_loader, test_loader, CONFIG = load_data(CONFIG, CONFIG.batch_size)
+# train_loader, valid_loader, test_loader = load_data(CONFIG,full_df, CONFIG.batch_size)
 
 
 # ===================================
@@ -190,7 +195,7 @@ def update_optimizer(optimizer, original_lr, c_A):
 # ===================================
 
 
-def train(epoch, best_val_loss, lambda_A, c_A, optimizer):
+def train(train_loader, epoch, best_val_loss, lambda_A, c_A, optimizer):
     t = time.time()
     nll_train = []
     kl_train = []
@@ -368,10 +373,11 @@ no_of_iter = []
 
 try:
     for step_k in range(k_max_iter):
+        train_loader, valid_loader, test_loader = load_data(CONFIG,full_df, CONFIG.batch_size)
         c_A_count=0
         while c_A < 1e20:
             for epoch in range(CONFIG.epochs):
-                ELBO_loss, NLL_loss, MSE_loss, graph, origin_A = train(
+                ELBO_loss, NLL_loss, MSE_loss, graph, origin_A = train(train_loader,
                     epoch, best_ELBO_loss, lambda_A, c_A, optimizer
                 )
                 if ELBO_loss < best_ELBO_loss:
@@ -413,8 +419,8 @@ try:
 
 
 
-#         if h_A_new.item() <= h_tol:
-#             break
+        # if h_A_new.item() <= h_tol:
+        #     break
 
         matG1 = np.matrix(origin_A.data.clone().numpy())
         final_df = pd.DataFrame(matG1, index=CONFIG.column_names, columns=CONFIG.column_names)
@@ -428,9 +434,25 @@ except KeyboardInterrupt:
     print("Done!")
 
 
+#total_iterations=no_of_wpochs*(summations of c_A_count)
+
 total_iterations=len(no_of_iter)
 final_mat=np.divide(final_mat,total_iterations)
-
+  
+# edge_matrix=np.zeros((37,37))
+# edge_matrix=final_mat.to_numpy()
+# print(edge_matrix)
+# for i in range(37):
+#     for j in range(37):
+#         if edge_matrix[i][j] > edge_matrix[j][i]:
+#             edge_matrix[i][j]+=edge_matrix[j][i]
+#             edge_matrix[j][i]=0
+#         else:
+#             edge_matrix[j][i]+=edge_matrix[i][j]
+#             edge_matrix[i][j]=0
+            
+# final_mat=pd.DataFrame(edge_matrix)
+print(final_mat)
 for i in range(final_mat.shape[0]):
     for j in range(final_mat.shape[1]):
         if final_mat.iloc[i,j] >= final_mat.iloc[j,i]:
@@ -439,10 +461,15 @@ for i in range(final_mat.shape[0]):
         else:
             final_mat.iloc[j,i]+=final_mat.iloc[i,j]
             final_mat.iloc[i,j]=0
-            
-            
+
+
+print(final_mat)
 for column in CONFIG.column_names:
-    final_mat[column] = np.where(np.abs(final_mat[column]) < .5 , 0, 1)
+    final_mat[column] = np.where(np.abs(final_mat[column]) < .5, 0, 1)
+
+
+
+
 
 # Save final binary adjacency matrix
 final_mat.to_csv("results/final_adjacency_matrix.csv", index=True)
