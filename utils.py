@@ -8,7 +8,6 @@ import math
 import os
 import pickle
 import re
-
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -24,12 +23,24 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.optim.adam import Adam
 
-from DAG_from_GNN.config import CONFIG
-
+from config import CONFIG
 
 # ========================================
 # VAE utility functions
 # ========================================
+def adjacency_matrix_to_edgelist(df):
+    df = df.loc[:,~df.columns.str.contains("Unnamed")]
+    f = df.to_numpy()
+    edgelist = []
+    print(f)
+    result = np.where(f == 1)
+    print('Tuple of arrays returned : ', result)
+    listOfCoordinates=zip(result[0], result[1])
+    for cord in listOfCoordinates:
+        if(df.columns.values[cord[0]]!=df.columns.values[cord[1]]):
+            edgelist.append([df.columns.values[cord[0]],df.columns.values[cord[1]]])
+    return edgelist    
+
 def my_softmax(input, axis=1):
     trans_input = input.transpose(axis, 0).contiguous()
     soft_max_1d = F.softmax(trans_input)
@@ -159,28 +170,22 @@ def binary_accuracy(output, labels):
 def list_files(directory, extension):
     return (f for f in os.listdir(directory) if f.endswith("_graph" + extension))
 
-def load_data_set(config,debug=False):
-    full_df = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
+def load_data_set(data_filename):
+    full_df = pd.read_csv('encoded_datasets/' + data_filename)
     return full_df
 
-def set_config(config, full_df):
-    config.column_names=full_df.columns
-    config.data_variable_size = len(config.column_names)
-    return config
 
+def no_of_rows(config,full_df):
+    return full_df.shape[0]
 
-
-def load_data(config, data, batch_size=1000, debug=False):
+def load_data(config, data, batch_size=1000, debug=False,):
     # data = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
-    rows = np.random.choice(data.index.values, 12000)
+    rows = np.random.choice(data.index.values, no_of_rows(config,data),replace=True)
 
     df_temp = data.loc[rows]
-    # df_temp.to_csv("datasets/sample_data.csv",index = False)
+    # df_temp.to_csv(str(""+"/sample_data_"+str(step_k)+".csv"),index = False)
     # load dataset as numpy array
     X = np.expand_dims(df_temp.to_numpy(),2)
-
-    print(df_temp.shape)
-    print(X.shape)
 
     # get column/variable names
     # df_temp = pd.read_csv(os.path.expanduser("datasets/" + config.data_filename))
@@ -199,10 +204,9 @@ def load_data(config, data, batch_size=1000, debug=False):
     valid_data = TensorDataset(feat_valid, feat_train)
     test_data = TensorDataset(feat_test, feat_train)
 
-    train_data_loader = DataLoader(train_data, batch_size=batch_size, sampler = torch.utils.data.RandomSampler(train_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
-    valid_data_loader = DataLoader(valid_data, batch_size=batch_size,   sampler =  torch.utils.data.RandomSampler(valid_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
-    test_data_loader = DataLoader(test_data, batch_size=batch_size,  sampler =  torch.utils.data.RandomSampler(test_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
-
+    train_data_loader = DataLoader(train_data, batch_size=batch_size)#,sampler = torch.utils.data.RandomSampler(train_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
+    valid_data_loader = DataLoader(valid_data, batch_size=batch_size)#,sampler = torch.utils.data.RandomSampler(valid_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
+    test_data_loader = DataLoader(test_data, batch_size=batch_size)#,sampler = torch.utils.data.RandomSampler(test_data, replacement=True, num_samples=batch_size, generator=torch.Generator().manual_seed(42)))
     return train_data_loader, valid_data_loader, test_data_loader
 
 
@@ -392,19 +396,30 @@ def normalize_adj(adj):
 
 
 def preprocess_adj(adj):
-    adj_normalized = torch.eye(adj.shape[0]).double() + (adj.transpose(0, 1))
+    if not CONFIG.no_cuda:
+        adj_normalized = torch.eye(adj.shape[0]).double().cuda() + (adj.transpose(0, 1))
+    else:
+        adj_normalized = torch.eye(adj.shape[0]).double() + (adj.transpose(0, 1))
     return adj_normalized
 
 
 def preprocess_adj_new(adj):
-    adj_normalized = torch.eye(adj.shape[0]).double() - (adj.transpose(0, 1))
+    if not CONFIG.no_cuda:
+        adj_normalized = torch.eye(adj.shape[0]).double().cuda() - (adj.transpose(0, 1))
+    else:
+        adj_normalized = torch.eye(adj.shape[0]).double() - (adj.transpose(0, 1))
     return adj_normalized
 
 
 def preprocess_adj_new1(adj):
-    adj_normalized = torch.inverse(
-        torch.eye(adj.shape[0]).double() - adj.transpose(0, 1)
-    )
+    if not CONFIG.no_cuda:
+        adj_normalized = torch.inverse(
+            torch.eye(adj.shape[0]).double().cuda() - adj.transpose(0, 1)
+        ).cuda()
+    else:
+        adj_normalized = torch.inverse(
+            torch.eye(adj.shape[0]).double() - adj.transpose(0, 1)
+        )
     return adj_normalized
 
 
@@ -441,8 +456,12 @@ def sparse_to_tuple(sparse_mx):
 
 
 def matrix_poly(matrix, d):
-    x = torch.eye(d).double() + torch.div(matrix, d)
+    if not CONFIG.no_cuda:  
+        x = torch.eye(d).double().cuda()+ torch.div(matrix, d).cuda()
+        return torch.matrix_power(x, d).cuda()
+    x = torch.eye(d).double()+ torch.div(matrix, d)
     return torch.matrix_power(x, d)
+    
 
 
 # matrix loss: makes sure at least A connected to another parents for child
