@@ -1,24 +1,10 @@
-"""
-Contains components of the GNN
-"""
-
 import math
-
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
-from DAG_from_GNN.utils import (
-    my_softmax,
-    get_offdiag_indices,
-    gumbel_softmax,
-    preprocess_adj,
-    preprocess_adj_new,
-    preprocess_adj_new1,
-    gauss_sample_z,
-    my_normalize,
-)
+from utils import *
 
 
 _EPS = 1e-10
